@@ -1,0 +1,300 @@
+---
+title: "STAT426-MiniProject#2"
+author: "Nathan Kim and Erwen Mundo"
+date: "2026-04-30"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Data Prep
+```{r}
+library(tidyverse)
+ps <- read.csv("Plant Survival Data.csv")
+ps <- ps %>%
+mutate(Outcome = case_when(
+Outcome_After_12_Months == "survived" ~ "survived",
+Outcome_After_12_Months %in% c("dead", "dead_before_12_month") ~ "dead"),
+Outcome = factor(Outcome, levels = c("dead", "survived"))) %>%
+dplyr::select(-Outcome_After_12_Months)
+
+ps_grouped <- ps %>%
+count(Endophyte, Treatment, Outcome) %>%
+pivot_wider(names_from = Outcome, values_from = n) %>%
+select(Endophyte, Treatment, survived, dead)
+```
+
+##Question 1
+
+```{r}
+model <- glm(Outcome ~ Endophyte, data = ps, family = binomial)
+
+anova(model, test = "Rao")
+
+
+
+```
+**H0: no association between Endophyte and outcome of survival. Ha: There is an association between Endophyte and outcome. Test Stat: 4.5488. df = 1, p-value = 0.03294. Since our p-value of 0.03294 < 0.05, we reject the null. We have significant evidence that there is an association between endophyte treatment and the survival outcome. **
+
+#Question 2i
+```{r}
+
+library(tidyverse)
+
+ps <- read.csv("Plant Survival Data.csv")
+
+ps <- ps %>%
+  mutate(
+    Outcome = case_when(
+      Outcome_After_12_Months == "survived" ~ "survived",
+      Outcome_After_12_Months %in% c("dead", "dead_before_12_month") ~ "dead"
+    ),
+    Outcome = factor(Outcome, levels = c("dead", "survived"))
+  ) %>%
+  select(-Outcome_After_12_Months)
+
+ps_grouped <- ps %>%
+  count(Endophyte, Treatment, Outcome) %>%
+  pivot_wider(names_from = Outcome, values_from = n) %>%
+  select(Endophyte, Treatment, survived, dead)
+
+head(ps_grouped)
+
+
+model_main <- glm(
+  cbind(survived, dead) ~ Endophyte + Treatment,
+  family = binomial,
+  data = ps_grouped
+)
+
+model_interaction <- glm(
+  cbind(survived, dead) ~ Endophyte * Treatment,
+  family = binomial,
+  data = ps_grouped
+)
+
+anova(model_main, model_interaction, test = "Chisq")
+
+```
+
+**Answer: To assess whether the association between Endophyte and survival is consistent across Treatment levels, a likelihood ratio test was used to compare the model with only main effects to the model including an interaction term. The test resulted in a deviance difference of 15.255 with 1 degree of freedom and a p-value of 9.393 X 10^-⁵. Since the p-value is less than 0.05, the null hypothesis of no interaction is rejected. This indicates that the effect of Endophyte on survival depends on the Treatment level. Therefore, the association between Endophyte and survival is heterogeneous across Treatment. For goodness of fit, the residual deviance of the main effects model is 15.255 with 1 degree of freedom. Because the deviance is much larger than the degrees of freedom, this suggests that the model does not provide a good fit to the data.**
+
+#Question 2ii
+```{r}
+
+library(tidyverse)
+
+ps <- read.csv("Plant Survival Data.csv")
+
+ps <- ps %>%
+  mutate(
+    Outcome = case_when(
+      Outcome_After_12_Months == "survived" ~ "survived",
+      Outcome_After_12_Months %in% c("dead", "dead_before_12_month") ~ "dead"
+    ),
+    Outcome = factor(Outcome, levels = c("dead", "survived"))
+  ) %>%
+  select(-Outcome_After_12_Months)
+
+ps_grouped <- ps %>%
+  count(Endophyte, Treatment, Outcome) %>%
+  pivot_wider(names_from = Outcome, values_from = n) %>%
+  select(Endophyte, Treatment, survived, dead)
+
+head(ps_grouped)
+
+
+model_main <- glm(
+  cbind(survived, dead) ~ Endophyte + Treatment,
+  family = binomial,
+  data = ps_grouped
+)
+
+model_interaction <- glm(
+  cbind(survived, dead) ~ Endophyte * Treatment,
+  family = binomial,
+  data = ps_grouped
+)
+
+anova(model_main, model_interaction, test = "Chisq")
+
+```
+
+**Answer: No, it is not necessary to test for conditional independence. Since the interaction between Endophyte and Treatment is significant, it shows that the relationship between Endophyte and survival changes depending on the Treatment level. Because of this, the association is not consistent across groups, so testing for conditional independence would not be appropriate here.**
+
+##Question 3i
+
+```{r}
+initial_model <- glm(Outcome ~ Treatment * Salt_Orgins, data = ps, family = binomial)
+
+full_model <- glm(Outcome ~ Endophyte * Treatment * Salt_Orgins + Leaf_Number + Height + Node_Number + Branching + Stem_Diameter, data = ps, family = binomial)
+
+#step backward
+step_backward <- step(full_model, trace = 0)
+summary(step_backward)
+
+#step forward
+null_model <- glm(Outcome ~ 1, data = ps, family = binomial)
+step_forward <- step(null_model, ~ Endophyte * Treatment * Salt_Orgins + Leaf_Number + Height + Node_Number + Branching + Stem_Diameter, direction = "forward", trace = 0)
+summary(step_forward)
+
+#step both
+step_model <- step(null_model, ~ Endophyte * Treatment * Salt_Orgins + Leaf_Number + Height + Node_Number + Branching + Stem_Diameter, direction = "both", trace = 0)
+summary(step_model)
+
+```
+
+**In the backward selection, the three-way interaction (most complex out of the three) model is selected. In the forward and stepwise selections, a simpler model is selected. It accounts for the fact that the effect of the Endophyte treatment depends on the salinity origin. **
+
+
+##Question 3ii
+```{r}
+initial_model_new <- glm(Outcome ~ 1, data = ps, family = binomial)
+
+full_model <- glm(Outcome ~ Endophyte * Treatment * Salt_Orgins + Leaf_Number + Height + Node_Number + Branching + Stem_Diameter, data = ps, family = binomial)
+
+#step backward
+step_backward_new <- step(full_model, trace = 0)
+summary(step_backward_new)
+
+#step forward
+step_forward_new <- step(initial_model_new, ~ Endophyte * Treatment * Salt_Orgins + Leaf_Number + Height + Node_Number + Branching + Stem_Diameter, direction = "forward", trace = 0)
+summary(step_forward_new)
+
+#step both
+step_model_new <- step(initial_model_new, ~ Endophyte * Treatment * Salt_Orgins + Leaf_Number + Height + Node_Number + Branching + Stem_Diameter, direction = "both", trace = 0)
+summary(step_model_new)
+
+```
+**There is no change in the final model selection between part i and ii. This is because the forward and stepwise methods already begin from an intercept-only model and the backward method still used the full model which didn't change. **
+
+#Question 4i
+```{r}
+model_logit <- glm(
+  Outcome ~ Endophyte * Treatment * Salt_Orgins,
+  family = binomial(link = "logit"),
+  data = ps
+)
+
+# Probit model
+model_probit <- glm(
+  Outcome ~ Endophyte * Treatment * Salt_Orgins,
+  family = binomial(link = "probit"),
+  data = ps
+)
+
+# Complementary log-log model
+model_cloglog <- glm(
+  Outcome ~ Endophyte * Treatment * Salt_Orgins,
+  family = binomial(link = "cloglog"),
+  data = ps
+)
+
+# Compare AIC
+AIC(model_logit, model_probit, model_cloglog)
+
+# Compare residual deviance
+data.frame(
+  Model = c("Logit", "Probit", "Cloglog"),
+  Residual_Deviance = c(
+    deviance(model_logit),
+    deviance(model_probit),
+    deviance(model_cloglog)
+  ),
+  DF = c(
+    df.residual(model_logit),
+    df.residual(model_probit),
+    df.residual(model_cloglog)
+  )
+)
+
+```
+
+**Answer: The logit, probit, and complementary log-log models were all fit using the same three-way interaction between Endophyte, Treatment, and Salt_Orgins. Looking at the AIC values, the logit model gives the best fit since it has the lowest AIC (335.09), slightly lower than the probit model (335.31), and noticeably lower than the cloglog model (337.78). When comparing residual deviance, the logit model again has the smallest value (319.09), followed very closely by the probit model (319.31), while the cloglog model has the largest deviance (321.78). So, the conclusion does not change when using residual deviance instead of AIC. In both cases, the logit model provides the best overall fit to the data.**
+
+#Question 4ii
+```{r}
+data.frame(
+  Model = c("Logit", "Probit", "Cloglog"),
+  AIC = c(AIC(model_logit), AIC(model_probit), AIC(model_cloglog)),
+  Residual_Deviance = c(
+    deviance(model_logit),
+    deviance(model_probit),
+    deviance(model_cloglog)
+  ),
+  Num_Parameters = c(8, 8, 8),
+  Deviance_plus_2p = c(
+    deviance(model_logit) + 2 * 8,
+    deviance(model_probit) + 2 * 8,
+    deviance(model_cloglog) + 2 * 8
+  )
+)
+
+```
+
+**Answer: The relationship between AIC and residual deviance holds for all three models. Each model has 8 parameters, so the penalty term is 2p=16. Adding this to the residual deviance gives the AIC in every case. For example, for the logit model, 319.09 + 16 = 335.09, which matches the reported AIC. The same pattern holds for the probit and cloglog models as well. So, the AIC is equal to the residual deviance plus 2p for all three models, confirming that the relationship holds here.**
+
+
+##Question 5
+```{r}
+library(pROC)
+model_3way <- glm(Outcome ~ Endophyte * Treatment * Salt_Orgins, data = ps, family = binomial)
+
+pihatcv <- numeric(nrow(ps))
+
+for(i in 1:nrow(ps))
+  pihatcv[i] <- predict(update(model_3way, subset=-i),
+  newdata=ps[i,], type="response")
+
+table(y=ps$Outcome, yhat=as.numeric(pihatcv > 0.5))
+
+
+pihat <- fitted(model_3way)
+roc(ps$Outcome, pihat, plot = TRUE, print.auc = TRUE)
+
+```
+
+**Sensitivity = 86 / (86 + 44) = 0.6615**
+**Specificity = 163 / (163 + 26) = 0.8624**
+**Accuracy (163 + 86) / 319 = 0.7806**
+**AUC value: 0.8164**
+
+#Question 6i
+```{r}
+model_pois <- glm(
+  Leaf_Number ~ Endophyte * Treatment * Salt_Orgins,
+  family = poisson,
+  data = ps
+)
+
+summary(model_pois)
+```
+**Answer: To test whether the three-way interaction is significant, a Wald test is used based on the coefficient from the Poisson regression model. The hypotheses are: H0: The three-way interaction coefficient equals 0 (no interaction effect). and Ha: The three-way interaction coefficient is not equal to 0. From the model output, the Wald test statistic for the three-way interaction term is z = 2.142, with a p-value of 0.03216. Since the p-value is less than 0.05, the null hypothesis is rejected. which indicates that the three-way interaction between Endophyte, Treatment, and Salt_Orgins is statistically significant in predicting Leaf_Number.**
+
+#Question 6ii
+```{r}
+phi_hat <- deviance(model_pois) / df.residual(model_pois)
+phi_hat
+```
+
+**Answer: The estimated dispersion parameter is 1.454792. Since the estimated dispersion parameter is greater than 1, this indicates evidence of overdispersion. This suggests that the variability in Leaf_Number is higher than what the Poisson model assumes.**
+
+#Question 6iii
+```{r}
+
+model_quasi <- glm(
+  Leaf_Number ~ Endophyte * Treatment * Salt_Orgins,
+  family = quasipoisson,
+  data = ps
+)
+
+summary(model_quasi)
+
+```
+
+**Answer: The quasi-Poisson model was fit to account for overdispersion in the data. The hypotheses for the Wald test are: H0: The three-way interaction coefficient equals 0 and Ha: The three-way interaction coefficient is not equal to 0. From the model output, the test statistic for the three-way interaction term is t = 1.717, with a p-value of 0.0869. Since the p-value is greater than 0.05, the null hypothesis is not rejected. This suggests that the three-way interaction is not statistically significant under the quasi-Poisson model. In comparison, the Poisson model in part (i) found the interaction to be significant (p = 0.032). Therefore, the significance does change when using the quasi-Poisson model. This change occurs because the quasi-Poisson model accounts for overdispersion by increasing the standard errors. As a result, the test statistic becomes smaller and the p-value increases, which can make previously significant effects no longer significant.**
+
+
+
+
